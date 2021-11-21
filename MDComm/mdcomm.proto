@@ -1,0 +1,32 @@
+package communication;
+
+option java_package = "com.errapartengineering.mdcomm";
+option java_outer_classname = "MDComm";
+option optimize_for = LITE_RUNTIME;
+option cc_generic_services = false;
+option java_generic_services = false;
+
+
+/** Message to the emulator. These are only queries. */
+message MessageToSlave {
+  /** Request Id; or unique negative OOB ID */
+  optional int32 Id = 1;
+
+  /** Request (APDU). */
+  optional bytes Query = 2;
+  /** Response length. */
+  optional uint32 ResponseLength = 3;
+}
+
+/** Message from the slave. */
+message MessageFromSlave {
+  /** Equals to the corresponding request Id, or unique negative OOB ID. */
+  optional int32 Id = 1;
+
+  /** Response, if any. */
+  optional bytes Response = 2;
+
+  /** Message, if any. */
+  optional string Message = 3;
+}
+
