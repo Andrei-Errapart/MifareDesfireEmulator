@@ -1,0 +1,3 @@
+[submodule "docker-booster"]
+	path = docker-booster
+	url = https://github.com/Trenz-Electronic/docker-booster
