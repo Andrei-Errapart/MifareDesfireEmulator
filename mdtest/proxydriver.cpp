@@ -10,9 +10,11 @@
 #include <alloca.h>	// alloca
 #include <stdlib.h>	// malloc
 
+extern "C" {
 #include <nfc/nfc.h>
 #include <drivers.h>
 #include <nfc-internal.h>
+}
 
 #include "mdcomm.pb.h"
 
@@ -54,7 +56,7 @@ _write_message(
 #endif
 	google::protobuf::io::FileOutputStream		raw_out(socket,0);
 	google::protobuf::io::CodedOutputStream		coded_out(&raw_out);
-	coded_out.WriteVarint32(message.ByteSize());
+	coded_out.WriteVarint32(static_cast<google::protobuf::uint32>(message.ByteSizeLong()));
 	message.SerializeToCodedStream(&coded_out);
 }
 
@@ -227,7 +229,7 @@ public:
 	#endif
 		google::protobuf::io::FileOutputStream		raw_out(_sockfd,0);
 		google::protobuf::io::CodedOutputStream		coded_out(&raw_out);
-		coded_out.WriteVarint32(message.ByteSize());
+		coded_out.WriteVarint32(static_cast<google::protobuf::uint32>(message.ByteSizeLong()));
 		message.SerializeToCodedStream(&coded_out);
 	}
 
@@ -553,7 +555,7 @@ proxydriver_initiator_transceive_bits_timed(struct nfc_device *pnd, const uint8_
 
 // ==================================================================
 static int
-proxydriver_initiator_target_is_present(struct nfc_device *pnd, const nfc_target nt)
+proxydriver_initiator_target_is_present(struct nfc_device *pnd, const nfc_target *nt)
 {
 	printf("proxydriver_target_is_present: NOT IMPLEMENTED.\n");
 	return -1;
@@ -626,7 +628,7 @@ proxydriver_get_supported_modulation(nfc_device *pnd, const nfc_mode mode, const
 
 // ==================================================================
 static int
-proxydriver_get_supported_baud_rate(nfc_device *pnd, const nfc_modulation_type nmt, const nfc_baud_rate * *const supported_br)
+proxydriver_get_supported_baud_rate(nfc_device *pnd, const nfc_mode mode, const nfc_modulation_type nmt, const nfc_baud_rate * *const supported_br)
 {
 	printf("proxydriver_get_supported_baud_rate: NOT IMPLEMENTED.\n");
 	return -1;

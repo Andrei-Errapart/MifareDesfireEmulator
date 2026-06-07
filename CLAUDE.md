@@ -8,11 +8,11 @@ A software emulator of a **Mifare DESFire** smartcard. There is no NFC hardware:
 
 ## Components (three languages, three toolchains)
 
-- **`mdemu/`** — the emulator itself. F#, .NET Framework 4.5. A TCP server (port **1555**) that decodes wrapped APDUs and behaves like a DESFire PICC. This is where ~all the real logic lives (`mdemu/mdemu.fs`, single file).
-- **`MDComm/`** — the protobuf wire-protocol library shared by emulator and client. C#, .NET 3.5. `mdcomm.proto` is the source of truth; `MDComm.cs` is **generated code — do not hand-edit**.
+- **`mdemu/`** — the emulator itself. F#, .NET 8. A TCP server (port **1555**) that decodes wrapped APDUs and behaves like a DESFire PICC. This is where ~all the real logic lives (`mdemu/mdemu.fs`, single file).
+- **`MDComm/`** — the protobuf wire-protocol library shared by emulator and client. Protocol Buffers. `mdcomm.proto` is the source of truth; `MDComm.cs` is historical generated code, while the modern emulator uses `mdemu/MDComm.fs`.
 - **`mdtest/`** — the test client. C++, Linux, plain `Makefile`. Drives the emulator using **libfreefare** as the DESFire client library, routed through a fake **libnfc** driver (`proxydriver`) that sends APDUs over TCP instead of to NFC hardware.
 
-`mdemu.sln` builds only the .NET side (`mdemu` + `MDComm`); `mdtest` is built separately via its Makefile.
+`mdemu.sln` builds the .NET 8 emulator; `mdtest` is built separately via its Makefile.
 
 ## Data flow
 
@@ -32,7 +32,7 @@ One large `match` over command bytes (`CMD_*`) implementing the DESFire command 
 - **APDU framing** (`unwrap_apdu` / `wrap_response`): request is `[0x90, CMD, 0x00, 0x00, Lc, <data...>, 0x00]`; response is `<data...> ++ [0x91, STATUS]`. Status bytes are the `STATUS_*` constants.
 - **Two-mode state machine.** `Mode` is `Normal` or `Continuation`. Returning status `STATUS_ADDITIONAL_FRAME` (0xAF) puts the connection into Continuation; the next `CMD_ADDITIONAL_FRAME` (0xAF) resumes the in-progress operation via the `Continued*` fields (`ContinuedAuth`, `ContinuedReadData`, `ContinuedWriteData`, plus `VersionResponse`). Multi-frame ops (authentication handshake, GetVersion, chunked read/write) live half in the `Normal` branch and half in the `Continuation` branch — change both sides together.
 - **Authentication** is the standard DESFire 3-pass mutual auth (RndA/RndB, rotate-by-one, XOR-chained). A successful handshake builds a session key and stores an `AuthResult` in `Session`; permission checks throughout the match inspect `Session.KeyId`.
-- **Crypto** is 3DES in ECB with manual CBC-style chaining done in `AuthResult.BlockEncrypt/Decrypt` (the PICC always *encrypts*; decrypt differs only by when the IV XOR happens). `create_3des_encryptor_decryptor` uses **reflection to call the internal `_NewEncryptor`** specifically to bypass .NET's weak-key rejection — the DESFire default key is all-zeros and would otherwise be refused. Don't "fix" this into a normal `CreateEncryptor` call.
+- **Crypto** is 3DES in ECB with manual CBC-style chaining done in `AuthResult.BlockEncrypt/Decrypt` (the PICC always *encrypts*; decrypt differs only by when the IV XOR happens). Modern .NET accepts the all-zero DESFire default key through `TripleDES.Create().CreateEncryptor`, so no private reflection hook is used.
 - **Permission model** lives on the `Application`/`Card` types: `MasterKeyConfiguration` bitmasks and per-file `AccessRights` nibbles (read/write/readwrite/change key IDs, with `KEYID_FREE_ACCESS`/`KEYID_DENY_ACCESS` sentinels).
 
 ## Persistence
@@ -41,27 +41,24 @@ Per connection, the emulator loads/saves card state as JSON at **`card-<uid>.txt
 
 ## Build & run
 
-**.NET side (Windows / Visual Studio 2012 / MSBuild):**
+**.NET side:**
 ```
-msbuild mdemu.sln /p:Configuration=Debug
-mdemu.exe [card_uid_hex]      # 7 hex bytes, e.g. 04345678123456 (default if omitted); listens on :1555
+dotnet build mdemu.sln
+dotnet run --project mdemu/mdemu.fsproj -- 04345678123456
 ```
+The UID argument is optional; it must be 7 hex bytes when provided. The emulator listens on `:1555`.
 
-**Regenerating protobuf C# (`MDComm.cs`)** — Windows only, run from `MDComm/`:
+**Test client (`mdtest`, Linux / Docker Booster):**
 ```
-mdupdate.bat                  # invokes lib/protogen.exe against mdcomm.proto
+git submodule update --init --recursive
+./containers/mdtest/run bash -lc 'cd mdtest && make FREEFARE_DIR=/opt/libfreefare NFC_DIR=/opt/libnfc'
+./containers/mdtest/run bash -lc 'cd mdtest && ./mdtest'
 ```
-
-**Test client (`mdtest`, Linux):**
-```
-cd mdtest && make             # also runs protoc to generate mdcomm.pb.{cpp,h} from ../MDComm/mdcomm.proto
-./mdtest
-```
-The Makefile expects **`../libfreefare` and `../libnfc` as sibling checkouts** and links against protobuf, openssl, libusb, cppcutter. There is no automated test runner — `mdtest` is a manual program you point at a running `mdemu`.
+The Makefile also supports host builds with configured `../libfreefare` and `../libnfc` checkouts. There is no automated test runner; `mdtest` is a manual program you point at a running `mdemu`.
 
 ## Gotchas
 
 - **Hardcoded emulator address.** The IP/port `192.168.5.107:1555` is hardcoded in both `mdtest/proxydriver.cpp` and `mdtest/mdtest.cpp` (and the port `1555` in `mdemu.fs`). Edit these to match your setup.
 - **Which test runs is chosen at compile time.** `mdtest.cpp` `main()` toggles scenarios (`desfire_show_info`, `desfire_access`, `desfire_default_key`, `desfire_change_keys`) with `#if (0)/#if (1)` blocks — exactly one is enabled. Flip the blocks and rebuild to run a different scenario.
-- **Cross-platform split.** Emulator is .NET/Windows; client is C++/Linux. Neither builds on this macOS checkout without the respective toolchains and the libnfc/libfreefare sources.
+- **Cross-platform split.** Emulator is .NET 8; client is C++/Linux and is easiest to build through Docker Booster.
 - **Incomplete by design.** Header TODOs in `mdemu.fs` note that not every command is implemented and full file encryption/3DES coverage is partial; e.g. `CMD_CHANGE_FILE_SETTINGS` is a stub that returns a length error. Don't assume a command is fully spec-compliant — read its match arm.

@@ -4,16 +4,15 @@
 
 This repository contains a software Mifare DESFire emulator and TCP-backed test client.
 
-- `mdemu/`: F# .NET Framework 4.5 emulator. Most card logic is in `mdemu/mdemu.fs`; it listens on TCP port `1555` and persists state as `card-<uid>.txt`.
-- `MDComm/`: C# .NET 3.5 protobuf protocol library. `MDComm/mdcomm.proto` is the source; `MDComm/MDComm.cs` is generated and should not be hand-edited.
+- `mdemu/`: F# .NET 8 emulator. Most card logic is in `mdemu/mdemu.fs`; it listens on TCP port `1555` and persists state as `card-<uid>.txt`.
+- `MDComm/`: Protocol Buffers schema directory. `MDComm/mdcomm.proto` is the shared schema; `MDComm/MDComm.cs` is historical generated code. The modern emulator uses `mdemu/MDComm.fs`.
 - `mdtest/`: Linux C++ test client and fake libnfc driver. It builds with `mdtest/Makefile` and generates `mdcomm.pb.{cpp,h}` from the shared proto.
 - `mdemu.sln`: Visual Studio solution for the .NET projects.
 
 ## Build, Test, and Development Commands
 
-- `msbuild mdemu.sln /p:Configuration=Debug`: builds `mdemu` and `MDComm` on Windows with Visual Studio/MSBuild tooling.
-- `mdemu.exe 04345678123456`: runs the emulator with an explicit 7-byte UID; omit the argument to use the default.
-- `cd MDComm && mdupdate.bat`: regenerates `MDComm.cs` after changing `mdcomm.proto`.
+- `dotnet build mdemu.sln`: builds the .NET 8 emulator.
+- `dotnet run --project mdemu/mdemu.fsproj -- 04345678123456`: runs the emulator with an explicit 7-byte UID.
 - `cd mdtest && make`: builds the Linux test client and runs `protoc` for C++ protobuf output.
 - `cd mdtest && make clean`: removes generated objects, `mdtest`, and generated protobuf C++ files.
 - `cd mdtest && ./mdtest`: runs the manual test client against a running emulator.
@@ -24,7 +23,7 @@ Follow the existing style in each component. F# code uses PascalCase for types/m
 
 ## Testing Guidelines
 
-There is no standalone automated test suite. `mdtest` is the manual integration test path and depends on sibling checkouts `../libfreefare` and `../libnfc`, plus protobuf, OpenSSL, libusb, and cppcutter. Before running it, update the hardcoded emulator address in `mdtest/proxydriver.cpp` and `mdtest/mdtest.cpp` if needed. Test scenarios are selected in `mdtest.cpp` with `#if (0)` / `#if (1)` blocks; enable one, rebuild, then run `./mdtest`.
+There is no standalone automated test suite. `mdtest` is the manual integration test path and depends on sibling checkouts `../libfreefare` and `../libnfc`, plus protobuf, OpenSSL, and libusb. Before running it, update the hardcoded emulator address in `mdtest/proxydriver.cpp` and `mdtest/mdtest.cpp` if needed. Test scenarios are selected in `mdtest.cpp` with `#if (0)` / `#if (1)` blocks; enable one, rebuild, then run `./mdtest`.
 
 ## Commit & Pull Request Guidelines
 
@@ -32,4 +31,4 @@ The current history uses short sentence-style commit messages, for example `Adde
 
 ## Agent-Specific Instructions
 
-Preserve the cross-platform split: `mdemu.sln` is for the .NET side, while `mdtest` is built separately on Linux. When modifying DESFire command handling, review both normal and continuation paths in `mdemu/mdemu.fs`, because multi-frame operations span both states.
+Preserve the cross-platform split: `mdemu.sln` builds the .NET 8 emulator, while `mdtest` is built separately on Linux or through Docker Booster. When modifying DESFire command handling, review both normal and continuation paths in `mdemu/mdemu.fs`, because multi-frame operations span both states.

@@ -8,10 +8,11 @@ extern "C" {
 #include <freefare_internal.h>
 }
 
+extern "C" {
 #include <nfc/nfc.h>
 #include <nfc/nfc-types.h>
-
 #include <libutil.h>
+}
 
 #include "proxydriver.h"
 #include "mycutter.h"	// testing library.
@@ -130,7 +131,7 @@ desfire_access(MifareTag tag, char* tag_uid)
 	}
 
 	// const char *s= "Hello World";
-	const char s[11] = { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB };
+	const uint8_t s[11] = { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB };
 	res = mifare_desfire_write_data (tag, 1, 0, sizeof(s), s);
 	if (res < 0)
 	{
@@ -441,7 +442,7 @@ main(int argc, char *argv[])
 		printf("mdtest: Enumerating tags...\n");
 		for (int i = 0; (!error) && tags[i]; i++)
 		{
-			if (DESFIRE != freefare_get_tag_type (tags[i]))
+			if (MIFARE_DESFIRE != freefare_get_tag_type (tags[i]))
 			{
 				continue;
 			}

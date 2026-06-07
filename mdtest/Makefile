@@ -1,7 +1,9 @@
 # Targets: mdtest
 
 FREEFARE_DIR	:= ../libfreefare
+NFC_DIR		:= ../libnfc
 FREEFARE_SRC	:=  \
+			$(FREEFARE_DIR)/libfreefare/felica.c \
 			$(FREEFARE_DIR)/libfreefare/freefare.c \
 			$(FREEFARE_DIR)/libfreefare/mad.c \
 			$(FREEFARE_DIR)/libfreefare/mifare_application.c \
@@ -11,9 +13,11 @@ FREEFARE_SRC	:=  \
 			$(FREEFARE_DIR)/libfreefare/mifare_desfire_crypto.c \
 			$(FREEFARE_DIR)/libfreefare/mifare_desfire_error.c \
 			$(FREEFARE_DIR)/libfreefare/mifare_desfire_key.c \
+			$(FREEFARE_DIR)/libfreefare/mifare_key_deriver.c \
 			$(FREEFARE_DIR)/libfreefare/mifare_ultralight.c \
+			$(FREEFARE_DIR)/libfreefare/ntag21x.c \
+			$(FREEFARE_DIR)/libfreefare/ntag21x_error.c \
 			$(FREEFARE_DIR)/libfreefare/tlv.c \
-			$(FREEFARE_DIR)/libfreefare/mifare_desfire_error.c \
 			$(FREEFARE_DIR)/contrib/libutil/hexdump.c
 FREEFARE_OBJ	:= $(FREEFARE_SRC:.c=.o)
 
@@ -26,8 +30,8 @@ MDTEST_SRC	:=	\
 
 CC	      	:= gcc
 CXX		:= g++
-CFLAGS	  	:= -Wall -g -I$(FREEFARE_DIR) -DWITH_DEBUG -I$(FREEFARE_DIR)/libfreefare -I$(FREEFARE_DIR)/contrib/libutil -I../libnfc/include -I../libnfc/libnfc -I/usr/include/cutter -I.
-LINKFLAGS       := -Wall -g -L../libnfc/libnfc/.libs -lnfc -lcppcutter -lcrypto -lssl -lusb -lprotobuf
+CFLAGS	  	:= -Wall -g -I$(FREEFARE_DIR) -DWITH_DEBUG -DHAVE_CONFIG_H -I$(FREEFARE_DIR)/libfreefare -I$(FREEFARE_DIR)/contrib/libutil -I$(NFC_DIR)/include -I$(NFC_DIR)/libnfc -I.
+LINKFLAGS       := -Wall -g -L$(NFC_DIR)/libnfc/.libs -Wl,-rpath,$(NFC_DIR)/libnfc/.libs -lnfc -lcrypto -lssl -lusb -lprotobuf
 CC_EXTRA	:= -std=c99
 
 

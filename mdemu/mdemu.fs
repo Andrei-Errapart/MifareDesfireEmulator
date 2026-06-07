@@ -3,14 +3,12 @@ open System.IO
 open System.Linq
 open System.Net
 open System.Net.Sockets
-open System.Reflection
 open System.Runtime.Serialization.Json
 open System.Security.Cryptography
 open System.Text
 open System.Threading
 open System.Xml
 
-open MDComm
 
 // Done:
 // 1. Authenticate with all zeroes.
@@ -167,16 +165,12 @@ let STATUS_FILE_INTEGRITY_ERROR     = 0xF1uy
 
 // ======================================================================
 let create_3des_encryptor_decryptor (key:byte[]) =
-    let des = new System.Security.Cryptography.TripleDESCryptoServiceProvider()
+    let des = TripleDES.Create()
     des.BlockSize <- BLOCK_SIZE * 8
     des.Mode <- CipherMode.ECB
     des.Padding <- PaddingMode.None
-    // By default, the Desfire uses weak key (all zeroes).
-    // Thus, the bypass of the check done by CreateEncryptor.
     let iv = Array.zeroCreate<byte> BLOCK_SIZE
-    let mi = des.GetType().GetMethod("_NewEncryptor", (BindingFlags.NonPublic ||| BindingFlags.Instance))
-    let invoke (x:int) = mi.Invoke(des, [| key :> obj; des.Mode :> obj; iv :> obj; des.FeedbackSize :> obj; x :> obj|]) :?> ICryptoTransform
-    invoke 0, invoke 1
+    des.CreateEncryptor(key, iv), des.CreateDecryptor(key, iv)
 
 // ======================================================================
 let create_3des_block_encryptor_decryptor (key:byte[]) =
@@ -1020,16 +1014,15 @@ let serve_connection (param: obj) =
         while client.Connected do
             let msg = MDComm.MessageToSlave.ParseDelimitedFrom stream
             if msg.HasId && msg.HasQuery && msg.HasResponseLength then
-                let id, query, response_length = msg.Id, msg.Query.ToByteArray(), msg.ResponseLength
-                let b = (new MDComm.MessageFromSlave.Builder()).SetId(id)
+                let id, query, response_length = msg.Id, msg.Query, msg.ResponseLength
                 let reply_msg =
                     try
                         let response = md.Transceive query response_length
-                        b.SetResponse(Google.ProtocolBuffers.ByteString.CopyFrom(response)).Build()
+                        MDComm.MessageFromSlave(id, Some response, None)
                     with
                     | ex ->
                         printfn "%s: Error processing command %s: %s" client_name (hexstring_of_bytes query) ex.Message
-                        b.SetMessage(ex.Message).Build()
+                        MDComm.MessageFromSlave(id, None, Some ex.Message)
                 reply_msg.WriteDelimitedTo stream
             else
                 printfn "%s: Message without Id or Query received." client_name
@@ -1053,7 +1046,7 @@ let main argv =
         let scard_uid = if argv.Length>0 then argv.[0] else "04345678123456"
         let card_uid = bytes_of_hexstring scard_uid
         if card_uid.Length=CARDUID_LENGTH then
-            let listener = TcpListener(ipAddress, port)
+            let listener = new TcpListener(ipAddress, port)
             listener.Start()
             printfn "mdemu: Listening on port %d, serving as card %s" port (hexstring_of_bytes card_uid)
             while true do
